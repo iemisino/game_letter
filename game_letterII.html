@@ -1,0 +1,1072 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>君の返事が見たくて</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Yomogi&display=swap" rel="stylesheet">
+<style>
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  body {
+    background-color: #111;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    font-family: 'Yomogi', 'Hiragino Kaku Gothic ProN', sans-serif;
+    overflow: hidden;
+  }
+  #game-wrapper {
+    position: relative;
+    width: min(100vw, calc(100vh * 9 / 20));
+    height: min(100vh, calc(100vw * 20 / 9));
+    background-color: #111;
+    box-shadow: 0 0 30px rgba(0,0,0,0.8);
+    overflow: hidden;
+    touch-action: none;
+  }
+  canvas {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(3px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    z-index: 20;
+  }
+  .dialog-box {
+    background: #fffdf0;
+    border-radius: 12px;
+    padding: 20px;
+    margin: 10px 0;
+    width: 88%;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    font-size: 16px;
+    line-height: 1.6;
+    color: #2c3e50;
+    border: 2px solid #e6d5ac;
+  }
+  .sticky-note {
+    background-color: #fff9a6;
+    border-left: 6px solid #f6e05e;
+    font-weight: bold;
+    color: #4a5568;
+    transform: rotate(-1.5deg);
+  }
+  .start-btn-msg {
+    margin-top: 25px;
+    color: #fff;
+    font-weight: bold;
+    font-size: 18px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    animation: blink 1.2s infinite;
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* 手紙完成ダイアログ */
+  #complete-notice {
+    position: absolute;
+    top: 40%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.8);
+    width: 85%;
+    background: #fff0f3;
+    border: 3px solid #ff4b6e;
+    border-radius: 16px;
+    padding: 20px 15px;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(255, 75, 110, 0.4);
+    z-index: 15;
+    opacity: 0;
+    pointer-events: none;
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+  }
+  #complete-notice.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  .notice-title {
+    color: #e53e3e;
+    font-size: 20px;
+    font-weight: bold;
+    margin-bottom: 8px;
+  }
+  .notice-desc {
+    color: #4a5568;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1.4;
+  }
+
+  #guide-ui {
+    position: absolute;
+    bottom: 1%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    font-weight: bold;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.9);
+    pointer-events: none;
+    z-index: 5;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* クリア画面 */
+  .clear-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    text-align: center;
+  }
+  .fin-title {
+    font-size: 42px;
+    font-family: serif;
+    font-style: italic;
+    margin-bottom: 15px;
+    letter-spacing: 2px;
+    text-shadow: 0 0 10px rgba(255,255,255,0.8);
+  }
+  .wedding-img-box {
+    width: 220px;
+    height: 280px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 8px 25px rgba(255,255,255,0.3);
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+  }
+</style>
+</head>
+<body>
+
+<div id="game-wrapper">
+  <canvas id="gameCanvas"></canvas>
+  
+  <div id="guide-ui">【机】スライド:教科書 / タップ:発射 【足元】移動</div>
+
+  <!-- 手紙完成案内ダイアログ -->
+  <div id="complete-notice">
+    <div class="notice-title">✨ 手紙が完成した！ ✨</div>
+    <div class="notice-desc">横にスライドして渡そう！</div>
+  </div>
+
+  <!-- スタート画面 -->
+  <div id="startOverlay" class="overlay">
+    <div class="dialog-box sticky-note">
+      「好きな人いる？」
+    </div>
+    <div class="dialog-box">
+      隣の子から手紙が...！<br>
+      チョークの音が止まったら危険！机部分を左スライドして教科書で隠そう！
+    </div>
+    <div class="start-btn-msg">タップでスタート</div>
+  </div>
+
+  <!-- ゲームオーバー画面 -->
+  <div id="gameoverOverlay" class="overlay" style="display: none;">
+    <div class="dialog-box" style="text-align: center; color: #e53e3e; font-weight: bold; font-size: 18px;">
+      先生に見つかった！
+    </div>
+    <div class="start-btn-msg">タップしてリトライ</div>
+  </div>
+
+  <!-- クリア画面 -->
+  <div id="clearOverlay" class="overlay" style="display: none;">
+    <div class="clear-container">
+      <div class="fin-title">Fin..</div>
+      <div class="wedding-img-box">
+        <svg viewBox="0 0 200 260" width="100%" height="100%">
+          <defs>
+            <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#fff5f7"/>
+              <stop offset="100%" stop-color="#ffe3ec"/>
+            </linearGradient>
+            <linearGradient id="dressGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#ffffff"/>
+              <stop offset="100%" stop-color="#f0f4f8"/>
+            </linearGradient>
+          </defs>
+          <rect width="200" height="260" fill="url(#bgGrad)"/>
+          
+          <path d="M 100 45 Q 60 90 55 180 Q 100 210 145 180 Q 140 90 100 45" fill="rgba(255,255,255,0.6)" stroke="#e2e8f0" stroke-width="1"/>
+          
+          <circle cx="100" cy="50" r="14" fill="#5a3d28"/>
+          <path d="M 90 52 Q 100 42 110 52" fill="none" stroke="#3d271d" stroke-width="2"/>
+          <circle cx="100" cy="42" r="4" fill="#ffb6c1"/>
+          <circle cx="95" cy="44" r="3" fill="#ffffff"/>
+          <circle cx="105" cy="44" r="3" fill="#ffffff"/>
+
+          <path d="M 82 65 Q 100 70 118 65 L 122 85 Q 100 90 78 85 Z" fill="#fce4ec"/>
+
+          <path d="M 78 85 Q 100 95 122 85 L 125 110 Q 100 115 75 110 Z" fill="url(#dressGrad)" stroke="#cbd5e0" stroke-width="1"/>
+          
+          <path d="M 75 110 Q 100 115 125 110 Q 160 180 175 250 Q 100 260 25 250 Q 40 180 75 110" fill="url(#dressGrad)" stroke="#e2e8f0" stroke-width="1"/>
+          <path d="M 100 115 Q 100 180 100 255" fill="none" stroke="#edf2f7" stroke-width="2" stroke-dasharray="4,4"/>
+          <path d="M 85 113 Q 75 180 50 252" fill="none" stroke="#edf2f7" stroke-width="1.5"/>
+          <path d="M 115 113 Q 125 180 150 252" fill="none" stroke="#edf2f7" stroke-width="1.5"/>
+
+          <path d="M 100 110 L 85 120 Q 75 110 85 105 Z" fill="#ffffff" stroke="#cbd5e0"/>
+          <path d="M 100 110 L 115 120 Q 125 110 115 105 Z" fill="#ffffff" stroke="#cbd5e0"/>
+          <path d="M 92 118 L 88 160 L 98 155 Z" fill="#ffffff" opacity="0.9"/>
+          <path d="M 108 118 L 112 160 L 102 155 Z" fill="#ffffff" opacity="0.9"/>
+          
+          <text x="30" y="50" font-size="12" fill="#fff">✨</text>
+          <text x="160" y="80" font-size="14" fill="#fff">✨</text>
+          <text x="25" y="200" font-size="10" fill="#fff">🌸</text>
+          <text x="165" y="210" font-size="10" fill="#fff">🌸</text>
+        </svg>
+      </div>
+      <div class="start-btn-msg" style="margin-top: 15px;">タップして最初から遊ぶ</div>
+    </div>
+  </div>
+</div>
+
+<script>
+class SoundSystem {
+  constructor() {
+    this.ctx = null;
+    this.chalkInterval = null;
+  }
+
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AudioCtx();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  }
+
+  playBlockHit() {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1046.50, this.ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.08);
+  }
+
+  playPaddleHit() {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(110, this.ctx.currentTime + 0.06);
+    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.06);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.06);
+  }
+
+  playDropSound() {
+    if (!this.ctx) return;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.2);
+    gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.2);
+  }
+
+  startChalkSound() {
+    this.stopChalkSound();
+    this.chalkInterval = setInterval(() => {
+      if (!this.ctx) return;
+      const bufferSize = this.ctx.sampleRate * 0.08;
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+      
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1200 + Math.random() * 800, this.ctx.currentTime);
+      filter.Q.setValueAtTime(2, this.ctx.currentTime);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+      noise.start();
+    }, 240);
+  }
+
+  stopChalkSound() {
+    if (this.chalkInterval) {
+      clearInterval(this.chalkInterval);
+      this.chalkInterval = null;
+    }
+  }
+
+  playGameOver() {
+    if (!this.ctx) return;
+    this.stopChalkSound();
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+    osc.frequency.linearRampToValueAtTime(80, this.ctx.currentTime + 0.5);
+    gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.5);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + 0.5);
+  }
+
+  playClear() {
+    if (!this.ctx) return;
+    this.stopChalkSound();
+    const notes = [523.25, 659.25, 783.99, 1046.50];
+    notes.forEach((freq, idx) => {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.1);
+      gain.gain.setValueAtTime(0.3, this.ctx.currentTime + idx * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + idx * 0.1 + 0.3);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(this.ctx.currentTime + idx * 0.1);
+      osc.stop(this.ctx.currentTime + idx * 0.1 + 0.3);
+    });
+  }
+}
+
+const sounds = new SoundSystem();
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const wrapper = document.getElementById('game-wrapper');
+
+const startOverlay = document.getElementById('startOverlay');
+const gameoverOverlay = document.getElementById('gameoverOverlay');
+const clearOverlay = document.getElementById('clearOverlay');
+const guideUI = document.getElementById('guide-ui');
+const noticeUI = document.getElementById('complete-notice');
+
+let W = 0, H = 0;
+function resize() {
+  W = canvas.width = wrapper.clientWidth;
+  H = canvas.height = wrapper.clientHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+let gameState = 'START';
+let loveGauge = 0;
+
+let teacherFacingFront = false;
+let teacherTurnTime = 0; 
+let teacherTimer = null;
+
+let bookOpenProgress = 0; 
+let bookTargetProgress = 0;
+
+let passTimer = 0;
+
+const ball = {
+  x: 0, y: 0,
+  vx: 0, vy: 0,
+  radius: 8,
+  baseSpeed: 0,
+  isDropped: false,
+  angle: 0
+};
+
+const paddle = {
+  x: 0, y: 0,
+  w: 0, h: 0
+};
+
+let deskAreaY = 0;
+let footAreaY = 0;
+let footAreaHeight = 0;
+
+let particles = [];
+let blocks = [];
+const COLS = 5;
+const ROWS = 4;
+const TOTAL_BLOCKS = COLS * ROWS;
+let topCeilingY = 0;
+
+const loveTextList = [
+  "それつさ", "前から", "わかる笑", "内緒ね", 
+  "ほんと？", "すき", "ひみつ", "放課後", 
+  "実はね", "えへへ", "一緒だ", "どうかな"
+];
+
+let touchStartY = 0;
+let touchStartX = 0;
+let activeTouchArea = null;
+let isMoved = false;
+
+function initGame() {
+  sounds.init();
+
+  loveGauge = 0;
+  teacherFacingFront = false;
+  bookOpenProgress = 0;
+  bookTargetProgress = 0;
+  gameState = 'PLAYING';
+  particles = [];
+  passTimer = 0;
+
+  noticeUI.classList.remove('show');
+  guideUI.innerText = "【机】スライド:教科書 / タップ:発射 【足元】移動";
+
+  paddle.w = W * 0.22;
+  paddle.h = paddle.w * 0.55;
+
+  footAreaHeight = paddle.h * 3;
+  footAreaY = H - footAreaHeight;
+  deskAreaY = 0;
+
+  paddle.x = (W - paddle.w) / 2;
+  paddle.y = footAreaY + paddle.h;
+
+  ball.radius = Math.max(7, W * 0.02);
+  ball.baseSpeed = H * 0.009;
+  resetBallToPaddle();
+
+  blocks = [];
+  const bw = (W * 0.85) / COLS;
+  const bh = H * 0.038;
+  const startX = (W - bw * COLS) / 2;
+  const startY = H * 0.28;
+
+  topCeilingY = startY - 8;
+
+  let textIdx = 0;
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const isHeart = (r + c) % 2 === 0;
+      const text = isHeart ? "" : loveTextList[textIdx % loveTextList.length];
+      if (!isHeart) textIdx++;
+
+      blocks.push({
+        x: startX + c * bw,
+        y: startY + r * bh,
+        w: bw - 2,
+        h: bh - 2,
+        type: isHeart ? 'HEART' : 'TEXT',
+        text: text,
+        alive: true
+      });
+    }
+  }
+
+  scheduleTeacher();
+}
+
+function resetBallToPaddle() {
+  ball.x = paddle.x + paddle.w / 2;
+  ball.y = paddle.y - ball.radius - 2;
+  ball.vx = 0;
+  ball.vy = 0;
+  ball.isDropped = true;
+}
+
+function launchBallTowards(targetX, targetY) {
+  if (!ball.isDropped || gameState !== 'PLAYING') return;
+  ball.isDropped = false;
+
+  const dx = targetX - ball.x;
+  const dy = targetY - ball.y;
+  
+  let angle = Math.atan2(dy, dx);
+  if (angle > -0.2) angle = -0.2; 
+  if (angle < -Math.PI + 0.2) angle = -Math.PI + 0.2;
+
+  ball.vx = Math.cos(angle) * ball.baseSpeed;
+  ball.vy = Math.sin(angle) * ball.baseSpeed;
+}
+
+function scheduleTeacher() {
+  if (teacherTimer) clearTimeout(teacherTimer);
+  if (gameState !== 'PLAYING' && gameState !== 'LETTER_READY' && gameState !== 'PASSING_LETTER') return;
+
+  if (teacherFacingFront) {
+    sounds.stopChalkSound();
+    teacherTimer = setTimeout(() => {
+      setTeacherState(false);
+      scheduleTeacher();
+    }, 3000 + Math.random() * 2000);
+  } else {
+    sounds.startChalkSound();
+    teacherTimer = setTimeout(() => {
+      sounds.stopChalkSound();
+      const delay = 1000 + Math.random() * 1000;
+      teacherTimer = setTimeout(() => {
+        setTeacherState(true);
+        scheduleTeacher();
+      }, delay);
+    }, 7500 + Math.random() * 5000);
+  }
+}
+
+function setTeacherState(front) {
+  teacherFacingFront = front;
+  if (teacherFacingFront) {
+    teacherTurnTime = Date.now();
+  }
+}
+
+function dropPencil() {
+  sounds.playDropSound();
+  resetBallToPaddle();
+  sounds.stopChalkSound();
+  setTeacherState(true);
+  scheduleTeacher();
+}
+
+function handlePointerDown(e) {
+  const rect = canvas.getBoundingClientRect();
+  const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+  const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+  const canvasY = clientY - rect.top;
+
+  touchStartY = canvasY;
+  touchStartX = clientX;
+  isMoved = false;
+
+  if (canvasY >= footAreaY) {
+    activeTouchArea = 'FOOT';
+  } else {
+    activeTouchArea = 'DESK';
+  }
+}
+
+function handlePointerMove(e) {
+  if (!activeTouchArea) return;
+  const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+  const diffX = clientX - touchStartX;
+
+  if (Math.abs(diffX) > 10) {
+    isMoved = true;
+  }
+
+  if (gameState === 'PLAYING') {
+    if (activeTouchArea === 'DESK') {
+      if (diffX < -40) {
+        bookTargetProgress = 1;
+      } else if (diffX > 40) {
+        bookTargetProgress = 0;
+      }
+    } else if (activeTouchArea === 'FOOT') {
+      // 教科書の開閉に関わらず操作可能に（ブロック崩し継続）
+      const rect = canvas.getBoundingClientRect();
+      const touchX = clientX - rect.left;
+      paddle.x = Math.max(0, Math.min(W - paddle.w, touchX - paddle.w / 2));
+      
+      if (ball.isDropped) {
+        ball.x = paddle.x + paddle.w / 2;
+      }
+    }
+  } else if (gameState === 'LETTER_READY' || gameState === 'PASSING_LETTER') {
+    if (activeTouchArea === 'FOOT') {
+      const rect = canvas.getBoundingClientRect();
+      const touchX = clientX - rect.left;
+      paddle.x = touchX - paddle.w / 2;
+    }
+  }
+}
+
+function handlePointerUp(e) {
+  if (gameState === 'PLAYING') {
+    if (activeTouchArea === 'DESK' && !isMoved && ball.isDropped) {
+      const rect = canvas.getBoundingClientRect();
+      const clientX = e.clientX || (e.changedTouches && e.changedTouches[0].clientX);
+      const clientY = e.clientY || (e.changedTouches && e.changedTouches[0].clientY);
+      const targetX = clientX - rect.left;
+      const targetY = clientY - rect.top;
+      launchBallTowards(targetX, targetY);
+    }
+  }
+  activeTouchArea = null;
+}
+
+window.addEventListener('mousedown', handlePointerDown);
+window.addEventListener('mousemove', handlePointerMove);
+window.addEventListener('mouseup', handlePointerUp);
+
+window.addEventListener('touchstart', e => { handlePointerDown(e); }, { passive: true });
+window.addEventListener('touchmove', handlePointerMove, { passive: true });
+window.addEventListener('touchend', handlePointerUp);
+
+startOverlay.addEventListener('click', () => {
+  startOverlay.style.display = 'none';
+  initGame();
+});
+
+gameoverOverlay.addEventListener('click', () => {
+  gameoverOverlay.style.display = 'none';
+  initGame();
+});
+
+clearOverlay.addEventListener('click', () => {
+  clearOverlay.style.display = 'none';
+  initGame();
+});
+
+function triggerGameOver() {
+  gameState = 'GAMEOVER';
+  if (teacherTimer) clearTimeout(teacherTimer);
+  sounds.playGameOver();
+  gameoverOverlay.style.display = 'flex';
+}
+
+function triggerClear() {
+  gameState = 'CLEAR';
+  if (teacherTimer) clearTimeout(teacherTimer);
+  sounds.playClear();
+  clearOverlay.style.display = 'flex';
+}
+
+function update() {
+  if (gameState === 'GAMEOVER' || gameState === 'CLEAR' || gameState === 'START') return;
+
+  if (gameState === 'LETTER_READY' || gameState === 'PASSING_LETTER') {
+    bookTargetProgress = 1;
+  }
+  bookOpenProgress += (bookTargetProgress - bookOpenProgress) * 0.2;
+
+  // 先生に見つかる判定
+  if (teacherFacingFront) {
+    const elapsed = Date.now() - teacherTurnTime;
+    if (elapsed > 500 && bookOpenProgress < 0.8) {
+      triggerGameOver();
+      return;
+    }
+  }
+
+  // 手紙の渡し（スライド退出）判定
+  if (gameState === 'LETTER_READY' || gameState === 'PASSING_LETTER') {
+    if (paddle.x + paddle.w < 0) {
+      if (gameState === 'LETTER_READY') {
+        gameState = 'PASSING_LETTER';
+        passTimer = Date.now();
+      } else if (gameState === 'PASSING_LETTER') {
+        const passElapsed = (Date.now() - passTimer) / 1000;
+        if (teacherFacingFront) {
+          triggerGameOver();
+          return;
+        }
+        if (passElapsed >= 0.8) {
+          triggerClear();
+          return;
+        }
+      }
+    }
+  }
+
+  // パーティクル更新
+  for (let i = particles.length - 1; i >= 0; i--) {
+    let p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.life -= 0.04;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // ブロック崩しの更新（教科書が開いていても動作継続）
+  if (gameState === 'PLAYING' && !ball.isDropped) {
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+    ball.angle = Math.atan2(ball.vy, ball.vx);
+
+    if (ball.x - ball.radius < 0) { ball.x = ball.radius; ball.vx *= -1; }
+    if (ball.x + ball.radius > W) { ball.x = W - ball.radius; ball.vx *= -1; }
+    
+    if (ball.y - ball.radius < topCeilingY) { 
+      ball.y = topCeilingY + ball.radius; 
+      ball.vy *= -1; 
+    }
+
+    if (ball.y - ball.radius > H) {
+      dropPencil();
+      return;
+    }
+
+    if (
+      ball.y + ball.radius >= paddle.y &&
+      ball.y - ball.radius <= paddle.y + paddle.h &&
+      ball.x >= paddle.x &&
+      ball.x <= paddle.x + paddle.w &&
+      ball.vy > 0
+    ) {
+      sounds.playPaddleHit();
+      ball.vy *= -1;
+      const hitPos = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+      ball.vx = hitPos * ball.baseSpeed * 1.2;
+    }
+
+    for (let b of blocks) {
+      if (!b.alive) continue;
+
+      const closestX = Math.max(b.x, Math.min(ball.x, b.x + b.w));
+      const closestY = Math.max(b.y, Math.min(ball.y, b.y + b.h));
+
+      const distX = ball.x - closestX;
+      const distY = ball.y - closestY;
+      if ((distX * distX) + (distY * distY) < (ball.radius * ball.radius)) {
+        b.alive = false;
+        sounds.playBlockHit();
+        
+        for(let k=0; k<5; k++){
+          particles.push({
+            x: b.x + b.w/2, y: b.y + b.h/2,
+            vx: (Math.random() - 0.5) * 4, vy: (Math.random() - 0.5) * 4,
+            life: 1.0, size: 3 + Math.random() * 3, color: '#ff4b6e'
+          });
+        }
+
+        ball.vy *= -1;
+        break; 
+      }
+    }
+
+    const remainingBlocks = blocks.filter(blk => blk.alive).length;
+    loveGauge = Math.min(100, Math.floor(((TOTAL_BLOCKS - remainingBlocks) / TOTAL_BLOCKS) * 100));
+
+    // ブロック全消去（手紙完成）時の処理
+    if (remainingBlocks === 0) {
+      gameState = 'LETTER_READY';
+      guideUI.innerText = "手紙が完成！左にスライドして渡そう！";
+      
+      // 完成案内ダイアログの表示
+      noticeUI.classList.add('show');
+      setTimeout(() => {
+        noticeUI.classList.remove('show');
+      }, 2500);
+
+      // 先生を正面向きに固定＆タイマー再設定
+      sounds.stopChalkSound();
+      setTeacherState(true);
+      scheduleTeacher();
+    }
+  }
+}
+
+function drawSplitBackground() {
+  const deskGrad = ctx.createLinearGradient(0, 0, 0, footAreaY);
+  deskGrad.addColorStop(0, '#c79c5e');
+  deskGrad.addColorStop(1, '#936831');
+  ctx.fillStyle = deskGrad;
+  ctx.fillRect(0, 0, W, footAreaY);
+
+  ctx.strokeStyle = 'rgba(80, 45, 10, 0.08)';
+  ctx.lineWidth = 4;
+  for (let i = -50; i < footAreaY; i += 25) {
+    ctx.beginPath();
+    ctx.moveTo(0, i);
+    ctx.bezierCurveTo(W * 0.3, i + 15, W * 0.7, i - 15, W, i + 5);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = '#5a3d1b';
+  ctx.fillRect(0, footAreaY - 8, W, 8);
+
+  const footGrad = ctx.createLinearGradient(0, footAreaY, 0, H);
+  footGrad.addColorStop(0, '#2d3748');
+  footGrad.addColorStop(1, '#1a202c');
+  ctx.fillStyle = footGrad;
+  ctx.fillRect(0, footAreaY, W, footAreaHeight);
+
+  ctx.fillStyle = '#2b3648';
+  ctx.fillRect(0, footAreaY + 5, W * 0.42, footAreaHeight);
+  ctx.fillRect(W * 0.58, footAreaY + 5, W * 0.42, footAreaHeight);
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, footAreaY);
+  ctx.lineTo(W, footAreaY);
+  ctx.stroke();
+}
+
+function drawPencil(x, y, radius, angle) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle + Math.PI / 2);
+
+  const len = radius * 3.8;
+  const w = radius * 1.6;
+
+  ctx.fillStyle = '#f6ad2b';
+  ctx.fillRect(-w / 2, -len / 2, w, len * 0.7);
+
+  ctx.fillStyle = '#e2d8b1';
+  ctx.beginPath();
+  ctx.moveTo(-w / 2, len * 0.2);
+  ctx.lineTo(0, len / 2 + 3);
+  ctx.lineTo(w / 2, len * 0.2);
+  ctx.fill();
+
+  ctx.fillStyle = '#2d3748';
+  ctx.beginPath();
+  ctx.moveTo(-w * 0.2, len * 0.38);
+  ctx.lineTo(0, len / 2 + 3);
+  ctx.lineTo(w * 0.2, len * 0.38);
+  ctx.fill();
+
+  ctx.fillStyle = '#cbd5e0';
+  ctx.fillRect(-w / 2, -len / 2 - 3, w, 4);
+  ctx.fillStyle = '#feb2b2';
+  ctx.fillRect(-w / 2, -len / 2 - 8, w, 5);
+
+  ctx.restore();
+}
+
+function drawTeacher(x, y, w, h, front) {
+  ctx.save();
+  ctx.translate(x, y);
+
+  ctx.fillStyle = '#3182ce';
+  ctx.fillRect(w * 0.3, h * 0.5, w * 0.4, h * 0.5);
+
+  ctx.fillStyle = '#fbd38d';
+  ctx.beginPath();
+  ctx.arc(w * 0.5, h * 0.35, w * 0.18, 0, Math.PI * 2);
+  ctx.fill();
+
+  if (front) {
+    ctx.fillStyle = '#2d3748';
+    ctx.beginPath();
+    ctx.arc(w * 0.5, h * 0.28, w * 0.18, Math.PI, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#1a202c';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(w * 0.38, h * 0.3, w * 0.1, h * 0.08);
+    ctx.strokeRect(w * 0.52, h * 0.3, w * 0.1, h * 0.08);
+
+    ctx.fillStyle = '#e53e3e';
+    ctx.beginPath();
+    ctx.arc(w * 0.43, h * 0.34, 2, 0, Math.PI * 2);
+    ctx.arc(w * 0.57, h * 0.34, 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.fillStyle = '#2d3748';
+    ctx.beginPath();
+    ctx.arc(w * 0.5, h * 0.33, w * 0.19, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(w * 0.65, h * 0.6);
+    ctx.lineTo(w * 0.82, h * 0.3);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawTextbookOverlay() {
+  if (bookOpenProgress <= 0.01) return;
+
+  ctx.save();
+  const bookX = W - (W * 0.92 * bookOpenProgress);
+  const bookY = H * 0.22;
+  const bookW = W * 0.88;
+  const bookH = footAreaY - bookY - 10;
+
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 15;
+
+  ctx.fillStyle = '#f7fafc';
+  ctx.fillRect(bookX, bookY, bookW, bookH);
+  ctx.strokeStyle = '#cbd5e0';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(bookX, bookY, bookW, bookH);
+
+  ctx.beginPath();
+  ctx.moveTo(bookX + bookW / 2, bookY);
+  ctx.lineTo(bookX + bookW / 2, bookY + bookH);
+  ctx.strokeStyle = '#a0aec0';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#cbd5e0';
+  for (let i = 0; i < 10; i++) {
+    ctx.fillRect(bookX + 15, bookY + 20 + i * 22, bookW / 2 - 30, 4);
+    ctx.fillRect(bookX + bookW / 2 + 15, bookY + 20 + i * 22, bookW / 2 - 30, 4);
+  }
+
+  ctx.restore();
+}
+
+function render() {
+  ctx.clearRect(0, 0, W, H);
+
+  drawSplitBackground();
+
+  const teacherBox = { x: 12, y: 12, w: W * 0.45, h: H * 0.18 };
+  ctx.fillStyle = '#2d5a27';
+  ctx.fillRect(teacherBox.x, teacherBox.y, teacherBox.w, teacherBox.h);
+  ctx.strokeStyle = '#8b5a2b';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(teacherBox.x, teacherBox.y, teacherBox.w, teacherBox.h);
+
+  drawTeacher(teacherBox.x, teacherBox.y, teacherBox.w, teacherBox.h, teacherFacingFront);
+
+  const gaugeBox = { x: W - 65, y: 15, w: 48, h: H * 0.16 };
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(gaugeBox.x, gaugeBox.y, gaugeBox.w, gaugeBox.h, 12);
+  ctx.fill();
+  ctx.stroke();
+
+  const fillH = (gaugeBox.h - 8) * (loveGauge / 100);
+  if (fillH > 0) {
+    const gaugeGrad = ctx.createLinearGradient(0, gaugeBox.y + gaugeBox.h, 0, gaugeBox.y);
+    gaugeGrad.addColorStop(0, '#ff4b6e');
+    gaugeGrad.addColorStop(1, '#ff758c');
+    ctx.fillStyle = gaugeGrad;
+    ctx.beginPath();
+    ctx.roundRect(gaugeBox.x + 4, gaugeBox.y + gaugeBox.h - 4 - fillH, gaugeBox.w - 8, fillH, 8);
+    ctx.fill();
+  }
+  ctx.font = '20px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('❤️', gaugeBox.x + gaugeBox.w / 2, gaugeBox.y - 10);
+
+  blocks.forEach(b => {
+    if (!b.alive) return;
+
+    ctx.save();
+    ctx.fillStyle = '#f0f0f0';
+    ctx.strokeStyle = '#555555';
+    ctx.lineWidth = 2;
+    
+    ctx.beginPath();
+    ctx.roundRect(b.x, b.y, b.w, b.h, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    if (b.type === 'HEART') {
+      ctx.fillStyle = '#d3121b';
+      ctx.strokeStyle = '#333333';
+      ctx.lineWidth = 1.5;
+      
+      const cx = b.x + b.w / 2;
+      const cy = b.y + b.h / 2;
+      const size = Math.min(b.w, b.h) * 0.35;
+
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + size * 0.6);
+      ctx.bezierCurveTo(cx - size, cy - size * 0.2, cx - size * 0.8, cy - size, cx, cy - size * 0.4);
+      ctx.bezierCurveTo(cx + size * 0.8, cy - size, cx + size, cy - size * 0.2, cx, cy + size * 0.6);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#222222';
+      ctx.font = `${Math.floor(b.h * 0.42)}px 'Yomogi', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(b.text, b.x + b.w / 2, b.y + b.h / 2 + 1);
+    }
+
+    ctx.restore();
+  });
+
+  particles.forEach(p => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  });
+
+  if (gameState === 'PLAYING') {
+    drawPencil(ball.x, ball.y, ball.radius, ball.angle);
+  }
+
+  // 手紙バーの描画
+  ctx.save();
+  ctx.translate(paddle.x, paddle.y);
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = 'rgba(0,0,0,0.3)';
+  ctx.shadowBlur = 6;
+  ctx.fillRect(0, 0, paddle.w, paddle.h);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(paddle.w / 2, paddle.h * 0.6);
+  ctx.lineTo(paddle.w, 0);
+  ctx.stroke();
+  ctx.fillStyle = '#ff4b6e';
+  ctx.font = `${Math.floor(paddle.h * 0.55)}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('❤️', paddle.w / 2, paddle.h / 2 + 2);
+  ctx.restore();
+
+  // 教科書オーバーレイ（レイヤー順を調整）
+  drawTextbookOverlay();
+}
+
+function loop() {
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
